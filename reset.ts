@@ -43,7 +43,7 @@ async function removeMessage(sid: string) {
     deleted++;
   } catch (error) {
     errorCount++;
-    toDelete.push(sid);
+    if (Math.random() > 0.25) toDelete.push(sid);
     write(error);
   } finally {
     connections--;
@@ -58,7 +58,7 @@ async function unscheduleMessage(sid: string) {
     toDelete.push(sid);
   } catch (error) {
     errorCount++;
-    toUpdate.push(sid);
+    if (Math.random() > 0.25) toUpdate.push(sid);
     write(error);
   } finally {
     connections--;
