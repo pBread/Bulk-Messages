@@ -1,0 +1,19 @@
+{
+  "author": "Phil Bredeson (https://github.com/pBread)",
+  "dependencies": {
+    "@types/node": "^17.0.25",
+    "dotenv": "^16.0.0",
+    "p-ratelimit": "^1.0.1",
+    "ts-node": "^10.7.0",
+    "twilio": "^3.76.1",
+    "typescript": "^4.6.3"
+  },
+  "name": "chat-channel-migration",
+  "scripts": {
+    "count": "ts-node count.ts",
+    "prep": "mv env.example .env",
+    "reset": "ts-node reset.ts",
+    "start": "ts-node index.ts"
+  },
+  "version": "1.0.0"
+}
