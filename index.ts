@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
+import fs from "fs";
 import { pRateLimit } from "p-ratelimit";
 import twilio from "twilio";
-import fs from "fs";
 
 dotenv.config();
 

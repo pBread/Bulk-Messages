@@ -1,8 +1,7 @@
 import dotenv from "dotenv";
+import fs from "fs";
 import { pRateLimit } from "p-ratelimit";
 import twilio from "twilio";
-import fs from "fs";
-import { MessageListInstanceEachOptions } from "twilio/lib/rest/api/v2010/account/message";
 
 dotenv.config();
 
