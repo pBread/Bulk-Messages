@@ -2,10 +2,11 @@ import dotenv from "dotenv";
 import { pRateLimit } from "p-ratelimit";
 import twilio from "twilio";
 import fs from "fs";
+import { MessageListInstanceEachOptions } from "twilio/lib/rest/api/v2010/account/message";
 
 dotenv.config();
 
-const { ACCOUNT_SID, AUTH_TOKEN } = process.env;
+const { ACCOUNT_SID, AUTH_TOKEN, TO } = process.env;
 const client = twilio(ACCOUNT_SID, AUTH_TOKEN);
 
 const concurrency = 70;
@@ -31,7 +32,7 @@ setInterval(() => {
   else if (toDelete.length) limit(() => removeMessage(toDelete.shift()));
 }, 10);
 
-client.messages.each({ to: "+18475070348" }, (msg) => {
+client.messages.each({ to: TO }, (msg) => {
   if (msg.status === "scheduled") toUpdate.push(msg.sid);
   else toDelete.push(msg.sid);
 });
@@ -44,6 +45,7 @@ async function removeMessage(sid: string) {
   } catch (error) {
     errorCount++;
     toDelete.push(sid);
+    write(error);
   } finally {
     connections--;
   }
@@ -58,9 +60,17 @@ async function unscheduleMessage(sid: string) {
   } catch (error) {
     errorCount++;
     toUpdate.push(sid);
+    write(error);
   } finally {
     connections--;
   }
+}
+
+function write(err: any) {
+  const str = `${JSON.stringify(err)}\n`;
+
+  if (fs.existsSync("error.log")) fs.appendFileSync("error.log", str);
+  else fs.writeFileSync("error.log", str);
 }
 
 setInterval(print, 500);

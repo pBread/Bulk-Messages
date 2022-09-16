@@ -1,10 +1,11 @@
 import dotenv from "dotenv";
 import { pRateLimit } from "p-ratelimit";
 import twilio from "twilio";
+import fs from "fs";
 
 dotenv.config();
 
-const { ACCOUNT_SID, AUTH_TOKEN } = process.env;
+const { ACCOUNT_SID, AUTH_TOKEN, MSG_SVC_SID, TO } = process.env;
 const client = twilio(ACCOUNT_SID, AUTH_TOKEN);
 
 const concurrency = 70;
@@ -19,9 +20,9 @@ let isComplete = false;
 
 let connections = 0;
 let scheduled = 0;
+let errorCount = 0;
 const start = Date.now();
 
-const errors = [];
 const retryQueue = [];
 
 let idx = 0;
@@ -39,9 +40,6 @@ setInterval(() => {
     clearInterval(printInterval);
     print();
 
-    let errIdx = 0;
-    for (const error of errors) console.error(`== Error ${errIdx}==`, error);
-
     process.exit();
   }
 
@@ -55,23 +53,31 @@ async function scheduleMessage(idx: number) {
     connections++;
     await client.messages.create({
       body: `Bulk Message # ${idx}`,
-      messagingServiceSid: "MG6ed676f3ef93d47374423a5342948a4a",
+      messagingServiceSid: MSG_SVC_SID,
       scheduleType: "fixed",
       sendAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 2 + 500 * idx),
-      to: "+18475070348",
+      to: TO,
     });
     connections--;
     scheduled++;
   } catch (error) {
     connections--;
-    errors.push(error);
+    errorCount++;
     retryQueue.push(idx);
+    write(error);
   }
 }
 
 async function handleRetry(idx: number) {
   await new Promise((resolve) => setTimeout(() => resolve(null), 100));
   scheduleMessage(idx);
+}
+
+function write(err: any) {
+  const str = `${JSON.stringify(err)}\n`;
+
+  if (fs.existsSync("error.log")) fs.appendFileSync("error.log", str);
+  else fs.writeFileSync("error.log", str);
 }
 
 function print() {
@@ -85,9 +91,15 @@ function print() {
 
   if (!isComplete) console.clear();
   process.stdout.write(`
-  Running Time.................... ${Math.floor(
-    totalMinutes
-  ).toLocaleString()} Minutes, ${Math.round(totalSeconds % 60)} Seconds
+  Running Time.................... ${
+    Math.floor(totalMinutes / 60) > 0
+      ? `${Math.floor(totalMinutes / 60).toLocaleString()} Hours, `
+      : ""
+  }${
+    Math.floor(totalMinutes % 60) > 0
+      ? `${Math.floor(totalMinutes % 60).toLocaleString()} Minutes, `
+      : ""
+  }${Math.round(totalSeconds % 60)} Seconds
   Estimated Completion Time....... ${Math.floor(
     estimatedCompletionTime
   ).toLocaleString()} Minutes, ${Math.round(totalSeconds % 60)} Seconds
@@ -97,7 +109,7 @@ function print() {
   Scheduled / Second.............. ${Math.round(msgsPerSec).toLocaleString()}
 
   Connections..................... ${connections.toLocaleString()}
-  Errors.......................... ${errors.length.toLocaleString()}
+  Errors.......................... ${errorCount.toLocaleString()}
 
   Record Index.................... ${idx.toLocaleString()}
   Retry Queue Length.............. ${retryQueue.length.toLocaleString()}
