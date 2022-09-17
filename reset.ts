@@ -8,8 +8,9 @@ dotenv.config();
 const { ACCOUNT_SID, AUTH_TOKEN, TO } = process.env;
 const client = twilio(ACCOUNT_SID, AUTH_TOKEN);
 
-const concurrency = 70;
+const concurrency = 95;
 const start = Date.now();
+const stopped = [];
 let connections = 0;
 let deleted = 0;
 let errorCount = 0;
@@ -21,8 +22,8 @@ const limit = pRateLimit({
   rate: 100, // 100 / second
 });
 
-const toDelete = [];
-const toUpdate = [];
+let toDelete = [];
+let toUpdate = [];
 
 setInterval(() => {
   if (concurrency <= connections) return;
@@ -31,10 +32,23 @@ setInterval(() => {
   else if (toDelete.length) limit(() => removeMessage(toDelete.shift()));
 }, 10);
 
-client.messages.each({ to: TO }, (msg) => {
-  if (msg.status === "scheduled") toUpdate.push(msg.sid);
-  else toDelete.push(msg.sid);
-});
+startRound(stopped.length);
+
+setInterval(restart, 1000 * 60 * 5);
+function restart() {
+  stopped.push(stopped.length);
+  toDelete = [];
+  toUpdate = [];
+  startRound(stopped.length + 1);
+}
+
+function startRound(idx: number) {
+  client.messages.each({}, (msg, done) => {
+    if (msg.status === "scheduled") toUpdate.push(msg.sid);
+    else toDelete.push(msg.sid);
+    if (stopped.includes(idx)) done();
+  });
+}
 
 async function removeMessage(sid: string) {
   try {
@@ -43,7 +57,6 @@ async function removeMessage(sid: string) {
     deleted++;
   } catch (error) {
     errorCount++;
-    if (Math.random() > 0.25) toDelete.push(sid);
     write(error);
   } finally {
     connections--;
@@ -58,7 +71,6 @@ async function unscheduleMessage(sid: string) {
     toDelete.push(sid);
   } catch (error) {
     errorCount++;
-    if (Math.random() > 0.25) toUpdate.push(sid);
     write(error);
   } finally {
     connections--;
@@ -66,13 +78,16 @@ async function unscheduleMessage(sid: string) {
 }
 
 function write(err: any) {
-  const str = `${JSON.stringify(err)}\n`;
+  try {
+    const str = `${JSON.stringify(err)}\n`;
 
-  if (fs.existsSync("error.log")) fs.appendFileSync("error.log", str);
-  else fs.writeFileSync("error.log", str);
+    if (fs.existsSync("error.log")) fs.appendFileSync("error.log", str);
+    else fs.writeFileSync("error.log", str);
+  } catch (error) {}
 }
 
 setInterval(print, 500);
+print();
 
 function print() {
   const totalSeconds = (Date.now() - start) / 1000;
@@ -94,17 +109,18 @@ function print() {
       ? `${Math.floor(totalMinutes % 60).toLocaleString()} Minutes, `
       : ""
   }${Math.round(totalSeconds % 60)} Seconds
-    Reset / Minute............... ${Math.round(totalPerMinute).toLocaleString()}
-    Reset / Second............... ${Math.round(totalPerSecond).toLocaleString()}
+  Reset / Minute................. ${Math.round(totalPerMinute).toLocaleString()}
+  Reset / Second................. ${Math.round(totalPerSecond).toLocaleString()}
 
   Total Reset.................... ${total.toLocaleString()}
-    Deleted Count................ ${deleted.toLocaleString()}
-    Updated Count................ ${updated.toLocaleString()}
+  Deleted Count.................. ${deleted.toLocaleString()}
+  Updated Count.................. ${updated.toLocaleString()}
 
   Delete Queue Length............ ${toDelete.length.toLocaleString()}
   Update Queue Length............ ${toUpdate.length.toLocaleString()}
   Error Count.................... ${errorCount.toLocaleString()}
 
+  Total Rounds................... ${stopped.length}
   Connections.................... ${connections.toLocaleString()}
   `);
 }
