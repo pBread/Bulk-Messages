@@ -9,6 +9,7 @@ const { ACCOUNT_SID, AUTH_TOKEN, MSG_SVC_SID, TO } = process.env;
 const client = twilio(ACCOUNT_SID, AUTH_TOKEN);
 
 const concurrency = 70;
+const messageTotal = 250000;
 
 const limit = pRateLimit({
   concurrency,
@@ -29,13 +30,8 @@ let idx = 0;
 
 let printInterval = setInterval(print, 500);
 
-let sleepCounter = 0;
-
 setInterval(() => {
-  sleepCounter = Math.max(sleepCounter, 0);
-  if (sleepCounter > 0) return --sleepCounter;
-
-  if (scheduled >= 250000) isComplete = true;
+  if (scheduled >= messageTotal) isComplete = true;
   if (isComplete) {
     clearInterval(printInterval);
     print();
@@ -44,7 +40,7 @@ setInterval(() => {
   }
 
   if (connections >= concurrency) return;
-  else if (idx < 250000) limit(() => scheduleMessage(++idx));
+  else if (idx < messageTotal) limit(() => scheduleMessage(++idx));
   else limit(() => handleRetry(retryQueue.shift()));
 }, 5);
 
@@ -87,7 +83,7 @@ function print() {
   const msgsPerMin = scheduled / totalMinutes;
   const msgsPerSec = scheduled / totalSeconds;
 
-  const estimatedCompletionTime = 250000 / msgsPerMin;
+  const estimatedCompletionTime = messageTotal / msgsPerMin;
 
   if (!isComplete) console.clear();
   process.stdout.write(`
